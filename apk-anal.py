@@ -32,7 +32,7 @@ import magic
 from xml.dom.minidom import parseString
 
 # Path to apktool
-apktool=""
+apktool="/usr/local/bin/apktool"
 
 # Checks for strings, imports, methods and symbols
 apkchecks =  {"strings":[".apk",".dex"]}
@@ -53,6 +53,8 @@ otherchecks = {"strings":["api_key","password","pass","admin","secret","encrypt"
 
 # Filter (only for urls in assets at the moment)
 filter_urls = ["http://schemas.android.com/"]
+
+
 
 # Radare2 wrapper functions
 def r2_check(strings,r2p,r2cmd):
@@ -117,6 +119,25 @@ def get_dex_files(directory):
                 list.append(os.path.join(root,file))
     return list
 
+
+def get_main_activity(activity_nodes):
+    for activity in activity_nodes:
+        intents = activity.getElementsByTagName('intent-filter')
+        for intent in intents:
+            actions = intent.getElementsByTagName('action')
+            categorys = intent.getElementsByTagName('category')
+            actionMain = False
+            for action in actions:
+                if  action.getAttribute('android:name') == 'android.intent.action.MAIN':
+                    actionMain = True
+                    break
+            for category in categorys:
+                if  category.getAttribute('android:name') == 'android.intent.category.LAUNCHER' and actionMain == True:
+                    return activity.getAttribute("android:name")
+            
+
+    return ""
+
 # Print permission from Manifest
 def print_manifest(manifestpath):
     with open(manifestpath,'r') as f:
@@ -126,9 +147,12 @@ def print_manifest(manifestpath):
         activity_nodes = dom.getElementsByTagName('activity')
         service_nodes = dom.getElementsByTagName('service')
         receiver_nodes = dom.getElementsByTagName('receiver')
-
+        
         for node in manifest_nodes:
             print("[*] Package: " + node.getAttribute("package"))
+            print("\tBuildVer:" + node.getAttribute("platformBuildVersionName") + "\tBuildSDK:" + node.getAttribute("platformBuildVersionCode"))
+
+        print("\n[*] MainActivitive:\n\t" + get_main_activity(activity_nodes))
 
         print("\n[*] Activitives:")
         for node in activity_nodes:
@@ -251,7 +275,7 @@ if not skip_extraction:
 
 if not skip_disassembly:
     print("[*] Disassembling apkfile with apktool:")
-    output = subprocess.check_output(["java", "-jar", apktool, "d", apkfile, "-o", smali_dir])
+    output = subprocess.check_output([ apktool, "d", apkfile, "-o", smali_dir])
     print(output)
 
 if not args.dex:
