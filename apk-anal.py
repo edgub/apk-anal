@@ -31,8 +31,7 @@ import shutil,itertools,argparse,zipfile
 import magic
 from xml.dom.minidom import parseString
 
-# Path to apktool
-apktool="/usr/local/bin/apktool"
+
 
 # Checks for strings, imports, methods and symbols
 apkchecks =  {"strings":[".apk",".dex"]}
@@ -210,7 +209,9 @@ def print_results(analysis_results,messages,r2p):
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', '-o', help='output directory')
 parser.add_argument('--dex' , '-d', help='dex file to analyse (skips extraction and disassembly of apk)', action='store_true')
-parser.add_argument('--apktool', help='Path to apktool jar file')
+parser.add_argument('--apktool', help='Path to apktool  tool')
+parser.add_argument('--dex2jar', help='Path to dex2jar  tool')
+parser.add_argument('--decompiler', help='Path to procyon-decompiler  tool')
 parser.add_argument('--skip-extraction',  help='skip decompilation & extraction. Assumes you already have something extracted to output-dir',action='store_true')
 parser.add_argument('--skip-assets',  help='skip asset listing and filetype detection',action='store_true')
 parser.add_argument('--extended', help='Do extended radare2 analysis. Try to find XREFS. This might take some time.', action='store_true')
@@ -219,16 +220,32 @@ parser.add_argument('--cleanup-before', help='Cleanup before extraction. WARNING
 parser.add_argument('apkfile', help="apk file to analyse", nargs='?')
 args = parser.parse_args()
 
+
+# Path to tools
+apktool="/usr/local/bin/apktool"
+decompiler = "/usr/local/bin/procyon-decompiler"
+dex2jar ="/usr/local/bin/d2j-dex2jar"
+
+if  args.apktool:
+    apktool=args.apktool
+
+if  args.decompiler:
+    decompiler=args.decompiler
+
+if  args.dex2jar:
+    dex2jar=args.dex2jar   
+
+
+
 apkfile = args.apkfile
 skip_extraction = args.skip_extraction or args.dex
 skip_disassembly = args.skip_extraction or args.dex
+skip_disassembly_java = args.skip_extraction or args.dex
 
 if not skip_extraction and apkfile is None:
     print("[!] No file given. Please provide an apkfile (or dexfile with -d option). Use -h for help.")
     exit(1)
 
-if not apktool:
-    apktool = args.apktool
 
 if (not apktool or not os.path.isfile(apktool)) and not args.dex:
     print("[!] Apktool not found. Please adjust path in script or provide it with --apktool")
@@ -246,6 +263,9 @@ else:
 zip_dir = extract_dir + "/zip"
 asset_dir = extract_dir + "/zip/assets"
 smali_dir = extract_dir + "/smali"
+
+jarfile =  extract_dir +"/"+ os.path.splitext( os.path.basename(apkfile))[0] + "-dex2jar.jar"
+java_dir = extract_dir + "/java"
 
 if not args.skip_extraction and os.path.isdir(extract_dir) and os.listdir(extract_dir) != [] and not args.cleanup_before and not args.dex:
     print("\n[!] " + "Output dir is not empty. Use --cleanup-before to empty output directory.")
@@ -276,6 +296,14 @@ if not skip_extraction:
 if not skip_disassembly:
     print("[*] Disassembling apkfile with apktool:")
     output = subprocess.check_output([ apktool, "d", apkfile, "-o", smali_dir])
+    print(output)
+
+if not skip_disassembly_java:
+    print("[*] Disassembling apkfile with d2j-dex2jar:")
+    output = subprocess.check_output([ dex2jar, apkfile,"-o", jarfile])
+    print(output)
+    print("[*] Disassembling jarfile with procyon-decompiler:")
+    output = subprocess.check_output([ decompiler, jarfile,"-o", java_dir])
     print(output)
 
 if not args.dex:
